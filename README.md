@@ -1,3 +1,7 @@
+This project is run just running the pipeline in Azure DevOps. The pipeline is in the main folder in the file azure-pipelines.yml
+
+
+Next steps are to run the project manually without the pipeline:
 # Azure Terraform Project Setup
 
 This project uses Terraform to manage Azure resources. It's structured with a separate backend configuration to ensure proper state management. Follow these steps to set up and run the project.
@@ -42,7 +46,7 @@ Now that the backend is set up, we can configure and apply the main Terraform pr
 1. Return to the main project directory:
 
     ```bash
-    cd ../azure-terraform
+    cd ../azure-terraform-infra
     ```
 2. Update the `backend.tf` file with the values from Step 1:
 ```hcl
@@ -71,16 +75,6 @@ Review the planned changes:
 
 
 
-
+in web http://127.0,0,1:8000
 In Docker http://127.0.0.1:5000 or ip:5000
  
-Azure resources (like app service or virtual machine) have been assigned "Managed Identity" access to Key Vault, 
-and the "Key Vault access policies" allow the app to retrieve secrets.
-
-Ensure the "Azure Key Vault" has access policies set up to allow the Managed Identity for your application to Get secrets.
-
-azure.identity
-
-Azure Cache for Redis
-
-Azure Key Vault
