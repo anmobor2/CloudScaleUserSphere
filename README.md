@@ -75,6 +75,6 @@ Review the planned changes:
 
 
 
-in web http://127.0,0,1:8000
+in web port 8000
 In Docker http://127.0.0.1:5000 or ip:5000
  

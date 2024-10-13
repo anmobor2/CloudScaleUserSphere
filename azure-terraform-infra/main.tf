@@ -84,7 +84,7 @@ resource "azurerm_app_service" "app" {
   app_service_plan_id = azurerm_app_service_plan.appserviceplan.id
 
   site_config {
-    linux_fx_version = "DOCKER|${var.docker_image_name}"
+    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${var.docker_image_name}:latest"
     always_on        = true
   }
 
@@ -98,8 +98,26 @@ resource "azurerm_app_service" "app" {
     DOCKER_REGISTRY_SERVER_URL          = "https://${azurerm_container_registry.acr.login_server}"
     DOCKER_REGISTRY_SERVER_USERNAME     = azurerm_container_registry.acr.admin_username
     DOCKER_REGISTRY_SERVER_PASSWORD     = azurerm_container_registry.acr.admin_password
+    DOCKER_ENABLE_CI                    = "true" # Enable CI/CD that means the app will be redeployed when the image in the registry changes
     "KEY_VAULT_URL"                     = azurerm_key_vault.kv.vault_uri
     "APPINSIGHTS_INSTRUMENTATIONKEY"    = azurerm_application_insights.app_insights.instrumentation_key
+  }
+}
+
+resource "azurerm_app_service_slot" "staging" {#this deploys the app to the staging slot and later I can swap the staging slot with the production slot
+  name                = "staging"
+  app_service_name    = azurerm_app_service.app.name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  app_service_plan_id = azurerm_app_service_plan.appserviceplan.id
+
+  site_config {
+    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${var.docker_image_name}:latest"
+  }
+
+  app_settings = {
+    DOCKER_ENABLE_CI              = "true"
+    WEBSITES_ENABLE_APP_SERVICE_STORAGE = "false"
   }
 }
 
@@ -183,6 +201,16 @@ resource "azurerm_key_vault_secret" "secret_key" {
   name         = "SECRET-KEY"
   value        = random_password.secret_key.result
   key_vault_id = azurerm_key_vault.kv.id
+}
+
+resource "azurerm_container_registry_webhook" "acr_webhook" {
+  name                = "myacrwebhook"
+  resource_group_name = azurerm_resource_group.rg.name
+  registry_name       = azurerm_container_registry.acr.name
+  service_uri         = "https://${azurerm_app_service.app.site_credential[0].username}:${azurerm_app_service.app.site_credential[0].password}@${azurerm_app_service.app.name}.scm.azurewebsites.net/docker/hook"
+
+  actions = ["push"]
+  location = var.location
 }
 
 data "azurerm_client_config" "current" {}
