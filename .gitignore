@@ -1,0 +1,17 @@
+.idea
+venv/
+venv
+.venv
+.flaskenv
+.env
+flash_session
+flask_session/
+instance/
+instance
+dump.rdb
+setup_keyvault.sh
+.terraform/
+.terraform
+.terraform.lock.hcl
+.terraform.lock
+dump.rdb

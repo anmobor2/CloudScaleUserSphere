@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+    <h2>Sign Up</h2>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-danger">
+                {% for message in messages %}
+                    {{ message }}
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+    <form method="POST" class="needs-validation" novalidate>
+        {{ form.hidden_tag() }}  <!-- CSRF token for form protection -->
+        <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            {{ form.username(class_="form-control") }}  <!-- Render the username field -->
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            {{ form.email(class_="form-control") }}  <!-- Render the email field -->
+        </div>
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            {{ form.password(class_="form-control") }}  <!-- Render the password field -->
+        </div>
+        {{ form.submit(class_="btn btn-primary") }}  <!-- Render the submit button -->
+    </form>
+{% endblock %}

@@ -1,0 +1,192 @@
+trigger:
+  - main
+
+variables:
+  group: 'azure-connection-vars'
+  azureServiceConnection: 'MyAzureServiceConnection'
+  vmImageName: 'ubuntu-latest'
+  backendResourceGroup: 'terraform-backend-rg'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  dockerImageName: 'myflaskapp'
+
+stages:
+- stage: TerraformBackend
+  displayName: 'Create Terraform Backend'
+  jobs:
+  - job: CreateBackend
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV3@3
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
+        backendType: 'azurerm'
+        backendServiceArm: '$(azureServiceConnection)'
+
+    - task: TerraformTaskV3@3
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
+        environmentServiceName: '$(azureServiceConnection)'
+
+    - task: Bash@3
+      name: SetBackendVariables
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "##vso[task.setvariable variable=backendResourceGroupName;isOutput=true]$(terraform output -raw backend_resource_group_name)"
+          echo "##vso[task.setvariable variable=backendStorageAccountName;isOutput=true]$(terraform output -raw backend_storage_account_name)"
+          echo "##vso[task.setvariable variable=backendContainerName;isOutput=true]$(terraform output -raw backend_container_name)"
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
+
+
+- stage: InfrastructureDeployment
+  displayName: 'Deploy Azure Infrastructure'
+  dependsOn: TerraformBackend
+  variables:
+    backendResourceGroupName: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendResourceGroupName'] ]
+    backendStorageAccountName: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendStorageAccountName'] ]
+    backendContainerName: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendContainerName'] ]
+  jobs:
+  - job: DeployInfrastructure
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformTaskV3@3
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
+        backendType: 'azurerm'
+        backendServiceArm: '$(azureServiceConnection)'
+        backendAzureRmResourceGroupName: '$(backendResourceGroupName)'
+        backendAzureRmStorageAccountName: '$(backendStorageAccountName)'
+        backendAzureRmContainerName: '$(backendContainerName)'
+        backendAzureRmKey: 'terraform.tfstate'
+
+    - task: TerraformTaskV3@3
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
+        environmentServiceName: '$(azureServiceConnection)'
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          ACR_NAME=$(terraform output -raw acr_name)
+          ACR_RESOURCE_GROUP=$(terraform output -raw acr_resource_group)
+
+          # Create ACR service connection
+          az devops service-endpoint docker-registry create \
+            --name "acr-$ACR_NAME" \
+            --azure-container-registry-name $ACR_NAME \
+            --azure-container-registry-resource-group $ACR_RESOURCE_GROUP
+
+          # Set variable for use in later tasks
+          echo "##vso[task.setvariable variable=acrServiceConnection;isOutput=true]acr-$ACR_NAME"
+      name: CreateACRServiceConnection
+      workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
+
+    - task: Bash@3
+      name: SetInfraVariables
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "##vso[task.setvariable variable=acrLoginServer;isOutput=true]$(terraform output -raw acr_login_server)"
+          echo "##vso[task.setvariable variable=appServiceName;isOutput=true]$(terraform output -raw app_service_name)"
+        workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
+
+- stage: BuildAndPushImage
+  displayName: 'Build and Push Docker Image'
+  dependsOn: InfrastructureDeployment
+  variables:
+    acrServiceConnection: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['CreateACRServiceConnection.acrServiceConnection'] ]
+    acrLoginServer: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.acrLoginServer'] ]
+  jobs:
+  - job: BuildPush
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      inputs:
+        containerRegistry: '$(acrServiceConnection)'
+        repository: '$(dockerImageName)'
+        command: 'buildAndPush'
+        Dockerfile: '$(dockerfilePath)'
+        tags: |
+          $(Build.BuildId)
+          latest
+
+
+- stage: DeployToAppService
+  displayName: 'Deploy to App Service'
+  dependsOn:
+  - InfrastructureDeployment
+  - BuildAndPushImage
+  variables:
+    appServiceName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.appServiceName'] ]
+    acrLoginServer: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.acrLoginServer'] ]
+  jobs:
+  - job: Deploy
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: AzureWebAppContainer@1
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        appName: '$(appServiceName)'
+        containers: '$(acrLoginServer)/$(dockerImageName):$(Build.BuildId)'
+
+
+
+
+
+steps:
+# Step 1: Checkout the code
+- task: Checkout@1
+
+# Step 2: Build Docker image
+- task: Docker@2
+  displayName: 'Build Docker Image'
+  inputs:
+    containerRegistry: '$(dockerRegistryServiceConnection)'  # Docker registry connection name from Azure
+    repository: '$(imageName)'
+    command: 'build'
+    Dockerfile: '**/Dockerfile'
+    tags: |
+      $(Build.BuildId)
+
+# Step 3: Push Docker image to the container registry
+- task: Docker@2
+  displayName: 'Push Docker Image'
+  inputs:
+    containerRegistry: '$(dockerRegistryServiceConnection)'  # Docker registry connection name from Azure
+    repository: '$(imageName)'
+    command: 'push'
+    tags: |
+      $(Build.BuildId)
+
+# Step 4: Deploy the image to Azure Web App for Containers
+- task: AzureWebAppContainer@1
+  displayName: 'Deploy to Azure Web App'
+  inputs:
+    azureSubscription: '<Your Azure Subscription Connection Name>'
+    appName: '<Your App Service Name>'  # Name of the Azure Web App
+    containerRegistry: '$(dockerRegistryServiceConnection)'  # Docker registry connection name from Azure
+    imageName: '$(imageName):$(Build.BuildId)'
+    startupCommand: 'python app.py'  # The entry point of your Flask app (ensure it matches your Dockerfile)
