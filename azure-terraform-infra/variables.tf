@@ -17,3 +17,8 @@ variable "image_name" {
   description = "The name of the Docker image to deploy"
   default     = "flask-app"
 }
+
+variable "project_name" {
+  description = "The name of the project"
+  default     = "myflaskapp"
+}

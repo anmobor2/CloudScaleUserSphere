@@ -66,8 +66,8 @@ resource "azurerm_app_service_plan" "appserviceplan" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   sku {
-    tier = "PremiumV2"
-    size = "P1v2"
+    tier = "Standard"
+    size = "S1"
   }
 }
 
@@ -99,6 +99,7 @@ resource "azurerm_app_service" "app" {
     DOCKER_REGISTRY_SERVER_USERNAME     = azurerm_container_registry.acr.admin_username
     DOCKER_REGISTRY_SERVER_PASSWORD     = azurerm_container_registry.acr.admin_password
     "KEY_VAULT_URL"                     = azurerm_key_vault.kv.vault_uri
+    "APPINSIGHTS_INSTRUMENTATIONKEY"    = azurerm_application_insights.app_insights.instrumentation_key
   }
 }
 
