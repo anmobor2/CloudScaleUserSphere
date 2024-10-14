@@ -139,32 +139,9 @@ stages:
           $(Build.BuildId)
           latest
 
-- stage: VerifyDeployment
-  displayName: 'Verify Deployment'
-  dependsOn: BuildAndPushImage
-  variables:
-    appServiceName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.appServiceName'] ]
-    resourceGroupName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.resourceGroupName'] ]
-  jobs:
-  - job: WaitAndVerify
-    pool:
-      vmImage: $(vmImageName)
-    steps:
-    - task: Delay@1
-      inputs:
-        delayForMinutes: '2'
-    - task: AzureWebAppContainer@1
-      inputs:
-        azureSubscription: '$(azureServiceConnection)'
-        appName: '$(appServiceName)'
-        deployToSlotOrASE: true
-        resourceGroupName: '$(resourceGroupName)'
-        slotName: 'production'
-        containerImageOverride: '$(acrLoginServer)/$(dockerImageName):$(Build.BuildId)'
-
 - stage: VerifyAppService
   displayName: 'Verify App Service Deployment'
-  dependsOn: VerifyDeployment
+  dependsOn: BuildAndPushImage  # Changed from VerifyDeployment
   variables:
     appServiceName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.appServiceName'] ]
     resourceGroupName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.resourceGroupName'] ]
@@ -174,19 +151,12 @@ stages:
     pool:
       vmImage: $(vmImageName)
     steps:
-    - task: AzureAppServiceSettings@1
+    - task: Delay@1
       inputs:
-        azureSubscription: '$(azureServiceConnection)'
-        appName: '$(appServiceName)'
-        resourceGroupName: '$(resourceGroupName)'
-        appSettings: |
-          [
-            {
-              "name": "DOCKER_CUSTOM_IMAGE_NAME",
-              "value": "$(acrLoginServer)/$(dockerImageName):$(Build.BuildId)"
-            }
-          ]
+        delayForMinutes: '2'  # Allow time for ACR webhook deployment
+
     - task: AzureCLI@2
+      displayName: 'Verify Deployed Image'
       inputs:
         azureSubscription: '$(azureServiceConnection)'
         scriptType: 'bash'
@@ -200,7 +170,9 @@ stages:
             echo "##vso[task.logissue type=error]Deployment verification failed: Current image ($CURRENT_IMAGE) does not match expected image ($EXPECTED_IMAGE)"
             exit 1
           fi
+
     - task: AzureCLI@2
+      displayName: 'Verify Key Vault URL Configuration'
       inputs:
         azureSubscription: '$(azureServiceConnection)'
         scriptType: 'bash'
