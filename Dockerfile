@@ -20,4 +20,4 @@ ENV FLASK_ENV=development
 ENV PORT=5000
 
 # Run the command to start Flask server
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
