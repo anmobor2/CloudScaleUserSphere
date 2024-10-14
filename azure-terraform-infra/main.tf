@@ -12,10 +12,6 @@ provider "azurerm" {
   use_cli = true
 }
 
-variable "backend_resource_group_name" {}
-variable "backend_storage_account_name" {}
-variable "backend_container_name" {}
-
 terraform {
   backend "azurerm" {
     # This will be filled by the pipeline

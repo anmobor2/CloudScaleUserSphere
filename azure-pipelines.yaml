@@ -37,18 +37,31 @@ stages:
         command: 'apply'
         workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
         environmentServiceNameAzureRM: '$(azureServiceConnection)'
+    - task: Bash@3
+      name: SetBackendVariables
+      inputs:
+        targetType: 'inline'
+        script: |
+          STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)
+          CONTAINER_NAME=$(terraform output -raw container_name)
+          RESOURCE_GROUP_NAME=$(terraform output -raw backend_resource_group_name)
+          echo "##vso[task.setvariable variable=backendStorageAccount;isOutput=true]$STORAGE_ACCOUNT_NAME"
+          echo "##vso[task.setvariable variable=backendContainer;isOutput=true]$CONTAINER_NAME"
+          echo "##vso[task.setvariable variable=backendResourceGroup;isOutput=true]$RESOURCE_GROUP_NAME"
+      workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
 
 - stage: InfrastructureDeployment
   displayName: 'Deploy Azure Infrastructure'
   dependsOn: TerraformBackend
-  jobs:
-  - job: DeployInfrastructure
+  variables:
+    backendStorageAccount: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendStorageAccount'] ]
+    backendContainer: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendContainer'] ]
+    backendResourceGroup: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendResourceGroup'] ]
+    jobs:
+      - job: DeployInfrastructure
     pool:
       vmImage: $(vmImageName)
     steps:
-    - task: TerraformInstaller@0
-      inputs:
-        terraformVersion: $(terraformVersion)
     - task: TerraformTaskV3@3
       inputs:
         provider: 'azurerm'
@@ -56,8 +69,8 @@ stages:
         workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
         backendServiceArm: '$(azureServiceConnection)'
         backendAzureRmResourceGroupName: '$(backendResourceGroup)'
-        backendAzureRmStorageAccountName: 'tfstate$(Build.BuildId)'
-        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmStorageAccountName: '$(backendStorageAccount)'
+        backendAzureRmContainerName: '$(backendContainer)'
         backendAzureRmKey: 'terraform.tfstate'
     - task: TerraformTaskV3@3
       inputs:
