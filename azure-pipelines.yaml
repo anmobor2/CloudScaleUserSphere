@@ -94,10 +94,11 @@ stages:
     - task: AzureCLI@2
       name: CreateACRServiceConnection
       inputs:
+        targetType: 'inline'
         azureSubscription: '$(azureServiceConnection)'
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
-        inlineScript: |
+        Script: |
           ACR_NAME=$(terraform output -raw acr_name)
           ACR_RESOURCE_GROUP=$(terraform output -raw acr_resource_group)
           SERVICE_CONNECTION_NAME="acr-service-connection-$(Build.BuildId)"
