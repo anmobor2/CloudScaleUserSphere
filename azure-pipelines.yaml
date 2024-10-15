@@ -1,5 +1,5 @@
 trigger:
-  - main
+- main
 
 variables:
   group: 'azure-connection-vars'
@@ -116,7 +116,7 @@ stages:
           echo "##vso[task.setvariable variable=acrServiceConnection;isOutput=true]$SERVICE_CONNECTION_NAME"
         targetType: 'inline'
         script: |
-          echo "##vso[task.setvariable variable=acrServiceConnection;isOutput=true]acr-service-connection-$(Build.BuildId)"
+          echo "##vso[task.setvariable variable=acrServiceConnection;isOutput=true]$SERVICE_CONNECTION_NAME"
 
 - stage: BuildAndPushImage
   displayName: 'Build and Push Docker Image'
@@ -131,7 +131,7 @@ stages:
     steps:
     - task: Docker@2
       inputs:
-        containerRegistry: '$(acrServiceConnection)'
+        containerRegistry: '$(acrServiceConnection)' #it is not reading this variable 
         repository: '$(dockerImageName)'
         command: 'buildAndPush'
         Dockerfile: '$(dockerfilePath)'
@@ -141,7 +141,7 @@ stages:
 
 - stage: VerifyAppService
   displayName: 'Verify App Service Deployment'
-  dependsOn: BuildAndPushImage  # Changed from VerifyDeployment
+  dependsOn: BuildAndPushImage # Changed from VerifyDeployment
   variables:
     appServiceName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.appServiceName'] ]
     resourceGroupName: $[ stageDependencies.InfrastructureDeployment.DeployInfrastructure.outputs['SetInfraVariables.resourceGroupName'] ]
@@ -153,7 +153,7 @@ stages:
     steps:
     - task: Bash@3
       inputs:
-        delayForMinutes: '2'  # Allow time for ACR webhook deployment
+        delayForMinutes: '2' # Allow time for ACR webhook deployment
 
     - task: AzureCLI@2
       displayName: 'Verify Deployed Image'
