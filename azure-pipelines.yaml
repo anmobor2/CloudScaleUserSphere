@@ -48,7 +48,6 @@ stages:
           echo "##vso[task.setvariable variable=backendStorageAccount;isOutput=true]$STORAGE_ACCOUNT_NAME"
           echo "##vso[task.setvariable variable=backendContainer;isOutput=true]$CONTAINER_NAME"
           echo "##vso[task.setvariable variable=backendResourceGroup;isOutput=true]$RESOURCE_GROUP_NAME"
-      workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-backend'
 
 - stage: InfrastructureDeployment
   displayName: 'Deploy Azure Infrastructure'
@@ -57,8 +56,8 @@ stages:
     backendStorageAccount: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendStorageAccount'] ]
     backendContainer: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendContainer'] ]
     backendResourceGroup: $[ stageDependencies.TerraformBackend.CreateBackend.outputs['SetBackendVariables.backendResourceGroup'] ]
-    jobs:
-      - job: DeployInfrastructure
+  jobs:
+  - job: DeployInfrastructure
     pool:
       vmImage: $(vmImageName)
     steps:
