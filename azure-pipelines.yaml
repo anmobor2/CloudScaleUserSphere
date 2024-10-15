@@ -150,7 +150,7 @@ stages:
     pool:
       vmImage: $(vmImageName)
     steps:
-    - task: Delay@2
+    - task: Bash@3
       inputs:
         delayForMinutes: '2'  # Allow time for ACR webhook deployment
 
