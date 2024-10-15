@@ -100,8 +100,8 @@ stages:
         inlineScript: |
           ACR_NAME=$(terraform output -raw acr_name)
           ACR_RESOURCE_GROUP=$(terraform output -raw acr_resource_group)
-          SERVICE_CONNECTION_NAME="acr-service-connection"
-          
+          SERVICE_CONNECTION_NAME="acr-service-connection-$(Build.BuildId)"
+
           # Create service connection
           az devops service-endpoint azurecr create --name "$SERVICE_CONNECTION_NAME" \
                                                     --azure-rm-service-principal-id $(servicePrincipalId) \
@@ -111,7 +111,7 @@ stages:
                                                     --acr-name "$ACR_NAME" \
                                                     --project "$(System.TeamProject)" \
                                                     --detect false
-          
+
           # Set the output variable
           echo "##vso[task.setvariable variable=acrServiceConnection;isOutput=true]$SERVICE_CONNECTION_NAME"
         workingDirectory: '$(System.DefaultWorkingDirectory)/azure-terraform-infra'
